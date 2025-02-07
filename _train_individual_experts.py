@@ -71,7 +71,7 @@ def train_without_ray(config):
         )
     
     model_checkpoint_callback=ModelCheckpoint(
-        # dirpath=f"./trained_checkpoints/{config["model_name"]}/experts/{config["dataset_name"]}",
+        # dirpath=f'./trained_checkpoints/{config["model_name"]}/experts/{config["dataset_name"]}',
         dirpath=f'./trained_checkpoints/{config["model_name"]}/experts/{config["dataset_name"]}/',
         save_top_k=1, 
         mode="max", 
@@ -95,7 +95,7 @@ def train_without_ray(config):
                 )
     end = time.time()
     elapsed = end - start
-    print(f"Time elapsed {elapsed/60:.2f} min")
+    print(f'Time elapsed {elapsed/60:.2f} min')
 
     '''Evaluating the model on training and validation datasets'''
     train_acc = trainer.test(lightning_model, dataloaders=train_loader, ckpt_path="best", verbose=False)
@@ -128,7 +128,6 @@ def train_without_ray(config):
             "Model_name": config["model_name"],
             "Model_path": config["model_path"],
             "Tokenizer_path": config["tokenizer_path"],
-            "Dataset_Type": config["dataload_type"],
             "Dataset_name": config["dataset_name"],
             }
 
@@ -139,76 +138,91 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     #changeable model parameter
-    model_name = "llama-3.2-1b" # options: roberta-base, llama-3.2-1b, llama-3-8b, llama-3-70b, 
-    glue_type= "glue" # glue, super_glue
-    dataset_name = "qqp" # glue are :mrpc, cola, sst2, qnli, rte, qqp;  super_glue are: boolq, cb, copa, wsc
+    model_name = "llama-3.2-1b" # options: roberta-base, llama-3.2-1b, llama-3.2-3b, llama-3.1-8b, llama-3.1-70b, 
+    dataset_name = "wic" # glue are :mrpc, cola, sst2, qnli, rte, qqp;  super_glue are: boolq, wic
+
+    if model_name not in ["roberta-base", "llama-3.2-1b", "llama-3.2-3b", "llama-3.1-8b", "llama-3.1-70b"]:
+        (lambda: (_ for _ in ()).throw(ValueError(f'{model_name}: Not adapted for this model')))()
+    if dataset_name in ["mrpc", "cola", "sst2", "qnli", "rte", "qqp"]:
+        glue_type = "glue"
+    elif dataset_name in ["boolq", "wic"]:
+        glue_type = "super_glue"
+    else:
+        (lambda: (_ for _ in ()).throw(ValueError(f'{dataset_name}: Not adapted for this dataset')))(),
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = {
         #ttlora parameters
         #query parameters
         "qshape": [64,4,3,3,4,64] if "roberta-base" in model_name #roberta query shape = 768x768
         else [16,4,4,2,2,2,2,2,2,4,4,16] if "llama-3.2-1b" in model_name #llama-3.2-1b q_proj shape = 2048x2048
-        else [16,4,4,4,2,2,2,2,4,4,4,16] if "llama-3-8b" in model_name #llama-3-8b q_proj shape = 4096x4096,
-        else [16,4,4,4,2,2,2,2,2,2,4,4,4,16] if "llama-3-70b" in model_name #llama-3-70b q_proj shape = 8192x8192
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(),
+        else [16,4,4,3,2,2,2,2,3,4,4,16] if "llama-3.2-3b" in model_name #llama-3.2-3b q_proj shape = 3072x3072
+        else [16,4,4,4,2,2,2,2,4,4,4,16] if "llama-3.1-8b" in model_name #llama-3.1-8b q_proj shape = 4096x4096,
+        else [16,4,4,4,2,2,2,2,2,2,4,4,4,16] if "llama-3.1-70b" in model_name #llama-3.1-70b q_proj shape = 8192x8192
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         "m_factors_q": 
         [64,4,3] if "roberta-base" in model_name #roberta m of query shape = 768,
-        else [16,4,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b m of q_proj shape = 4096,
-        else [16,4,4,4,2,2,2] if "llama-3-70b" in model_name #llama-3-70b m of q_proj shape = 8192
         else [16,4,4,2,2,2] if "llama-3.2-1b" in model_name #llama-3.2-1b m of q_proj shape = 2048
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(), 
+        else [16,4,4,3,2,2] if "llama-3.2-3b" in model_name #llama-3.2-3b m of q_proj shape = 3072
+        else [16,4,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b m of q_proj shape = 4096,
+        else [16,4,4,4,2,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b m of q_proj shape = 8192
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         "n_factors_q": 
         [64,4,3] if "roberta-base" in model_name #roberta n of query shape = 768
-        else [16,4,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b n of q_proj shape = 4096,
-        else [16,4,4,4,2,2,2] if "llama-3-70b" in model_name #llama-3-70b n of q_proj shape = 8192
         else [16,4,4,2,2,2] if "llama-3.2-1b" in model_name #llama-3.2-1b n of q_proj shape = 2048
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(),
+        else [16,4,4,3,2,2] if "llama-3.2-3b" in model_name #llama-3.2-3b n of q_proj shape = 3072,
+        else [16,4,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b n of q_proj shape = 4096,
+        else [16,4,4,4,2,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b n of q_proj shape = 8192
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         #value parameters
         "vshape": [64,4,3,3,4,64] if "roberta-base" in model_name #roberta value shape = 768x768
-        else [16,4,4,4,2,2,2,2,4,4,16] if "llama-3-8b" in model_name #llama-3-8b v_proj shape = 4096x1024,
-        else [16,4,4,4,2,2,2,2,2,4,4,16] if "llama-3-70b" in model_name #llama-3-70b v_proj shape = 8192x1024
-        else [16,4,4,2,2,2,2,4,4,16] if "llama-3.2-1b" in model_name #llama-3.2-1b n of v_proj shape = 2048 x 512
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(), 
+        else [16,4,4,2,2,2,2,4,4,16] if "llama-3.2-1b" in model_name #llama-3.2-1b v_proj shape = 2048 x 512
+        else [16,4,4,3,2,2,2,2,4,4,16] if "llama-3.2-3b" in model_name #llama-3.2-3b v_proj shape = 3072x1024
+        else [16,4,4,4,2,2,2,2,4,4,16] if "llama-3.1-8b" in model_name #llama-3.1-8b v_proj shape = 4096x1024,
+        else [16,4,4,4,2,2,2,2,2,4,4,16] if "llama-3.1-70b" in model_name #llama-3.1-70b v_proj shape = 8192x1024
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         "m_factors_v": 
         [64,4,3] if "roberta-base" in model_name #roberta m of value shape = 768
-        else [16,4,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b m of v_proj shape = 4096,
-        else [16,4,4,4,2,2,2] if "llama-3-70b" in model_name #llama-3-70b m of v_proj shape = 8192
         else [16,4,4,2,2,2] if "llama-3.2-1b" in model_name #llama-3.2-1b m of v_proj shape = 2048
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(), 
+        else [16,4,4,3,2,2] if "llama-3.2-3b" in model_name #llama-3.2-3b m of v_proj shape = 3072,
+        else [16,4,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b m of v_proj shape = 4096,
+        else [16,4,4,4,2,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b m of v_proj shape = 8192
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         "n_factors_v": 
         [64,4,3] if "roberta-base" in model_name #roberta n of value shape = 768
-        else [16,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b n of v_proj shape = 1024
-        else [16,4,4,2,2] if "llama-3-70b" in model_name #llama-3-70b n of v_proj shape = 1024
         else [16,4,4,2] if "llama-3.2-1b" in model_name #llama-3.2-1b m of v_proj shape = 512
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(),
+        else [16,4,4,2,2] if "llama-3.2-3b" in model_name #llama-3-3b n of v_proj shape = 1024
+        else [16,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b n of v_proj shape = 1024
+        else [16,4,4,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b n of v_proj shape = 1024
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         
         "rank": 
         4 if "roberta-base" in model_name 
         else 10 if "llama" in model_name
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(),
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         "alpha": 
         8 if "roberta-base" in model_name 
         else 12 if "llama" in model_name
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(),
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
         
         "common_alpha": 
         8 if "roberta-base" in model_name 
         else 12 if "llama" in model_name
-        else (lambda: (_ for _ in ()).throw(ValueError(f"{model_name} Not adapted for this experiment")))(),
+        else (lambda: (_ for _ in ()).throw(ValueError(f'{model_name} Not adapted for this experiment')))(),
 
         #model parameters
         "model_name" : model_name,
-        "model_path" : f"./models/{model_name}/{model_name}-model",
-        # "model_path" :
-        "tokenizer_path" : f"./models/{model_name}/{model_name}-tokenizer",
-        # "tokenizer_path" :
+        # "model_path" : '/lustre/vescratch1/ceodspspectrum/llms/llama31-8b/checkpoints/', #for local
+        # "tokenizer_path" : '/lustre/vescratch1/ceodspspectrum/llms/llama31-8b/checkpoints/', #for local
+        "model_path" : f'./models/{model_name}/{model_name}-model', 
+        "tokenizer_path" : f'./models/{model_name}/{model_name}-tokenizer', 
         "device": device,  
 
         #changable dataset parameters:
@@ -219,13 +233,13 @@ if __name__ == "__main__":
         #changeable hyperparameters
         "learning_rate": 1e-3
         # 1e-3 if "roberta-base" in model_name 
-        # else 1e-5 if "llama-3-8b" in model_name
-        # else 1e-5 if "llama-3-70b" in model_name
-        # else ValueError(f"{model_name} Not adapted for this experiment"),
+        # else 1e-5 if "llama-3.1-8b" in model_name
+        # else 1e-5 if "llama-3.1-70b" in model_name
+        # else ValueError(f'{model_name} Not adapted for this experiment'),
     }
 
     analysis =  train_without_ray(config)
     # df = pd.DataFrame(list(analysis.items()), columns=['metric', 'value'])
     # print(df)
-    # filename = f"Expert-w/o-dd_{config["dataset_name"]}_{config["model_name"]}.csv"
+    # filename = f'Expert-w/o-dd_{config["dataset_name"]}_{config["model_name"]}.csv'
     # df.to_csv(filename, index=False)

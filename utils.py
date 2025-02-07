@@ -27,8 +27,9 @@ def get_ttlora_rank(r, ttlora_shape):
     return ttlora_rank
 
 def load_new_model_for_sequence_classification_from_local_path(config):
-    
     model = AutoModelForSequenceClassification.from_pretrained(config["model_path"], num_labels=2)
+    # if "llama-3.1-8b" in config["model_name"] or "llama-3.1-70b" in config["model_name"]:
+    #     model.config.pad_token_id = model.config.eos_token_id[0]
     model.config.pad_token_id = model.config.eos_token_id
     for param in model.parameters():
         param.requires_grad = False
@@ -39,7 +40,7 @@ def get_tokenizer(config, dataset):
     '''Tokenizes the provided dataset and data name using the tokenizer from the specified path'''
     path = config["tokenizer_path"]
     data_name = config["dataset_name"]
-
+    
     tokenizer = AutoTokenizer.from_pretrained(path)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     print("EOS Token ID at tokenizer:", tokenizer.eos_token_id, type(tokenizer.eos_token_id))
@@ -80,11 +81,16 @@ def get_tokenizer(config, dataset):
         
         #super_glue datasets
         if data_name == "wic":
-            return tokenizer(batch["word"], batch['sentence1'], batch['sentence2'], batch['start1'], batch['start2'], batch['end1'], batch['end2'], add_special_tokens=True, truncation=True, padding=True)
+            # Properly formatting inputs into a single string
+            texts = [f'{word} {s1} {s2} {s1_start}-{s1_end} {s2_start}-{s2_end}'
+                 for word, s1, s2, s1_start, s1_end, s2_start, s2_end in 
+                 zip(batch["word"], batch["sentence1"], batch["sentence2"], batch["start1"], batch["end1"], batch["start2"], batch["end2"])]
+
+            return tokenizer(texts, add_special_tokens=True, truncation=True, padding=True)
         # if data_name == "cb":
         #     return tokenizer(batch["premise"], batch["hypothesis"], truncation=True, padding=True)
         if data_name == "boolq":
-            return tokenizer(batch["passage"], batch["question"], truncation=True, padding=True)
+            return tokenizer(batch["question"], batch["passage"],  truncation=True, padding=True)
         # if data_name == "wsc":
         #     target = batch["target"]
         #     span1_text=[]
@@ -96,14 +102,14 @@ def get_tokenizer(config, dataset):
 
         #         span1_text.append(span1_text_val)
         #         span2_text.append(span2_text_val)
-        #     span = [f"{span1_text}{tokenizer.bos_token}{span2_text}" for span1_text, span2_text in zip(span1_text, span2_text)]
+        #     span = [f'{span1_text}{tokenizer.bos_token}{span2_text}' for span1_text, span2_text in zip(span1_text, span2_text)]
         #     return tokenizer(batch["text"], span, truncation=True, padding=True,max_length = 1024)
         # if data_name == "copa":
         #     question = batch["question"]
         #     choice1 = batch["choice1"]
         #     choice2 = batch["choice2"]
         #     choice2 = batch["question"]
-        #     combined = [f"{choice1}{tokenizer.bos_token}{choice2}{tokenizer.bos_token}{question}" for choice1, choice2, question in zip(choice1, choice2, question)]
+        #     combined = [f'{choice1}{tokenizer.bos_token}{choice2}{tokenizer.bos_token}{question}' for choice1, choice2, question in zip(choice1, choice2, question)]
         #     return tokenizer(batch["premise"], combined, truncation=True, padding=True)
     # Map the words in the dataset to the token values of the loaded tokenizer
     # None batch size = process entire dataset as single batch
@@ -113,25 +119,30 @@ def get_tokenizer(config, dataset):
     tokenized.set_format("torch", columns=["input_ids", "attention_mask", "label"])
     return tokenized
 
-def get_mix_tokenizer(path, data_name, dataset): #used to do the maximum padding for the dataset to match all the types of dataset's sequence_length
+def get_mix_tokenizer(model_name, path, data_name, dataset): #used to do the maximum padding for the dataset to match all the types of dataset's sequence_length
     '''Tokenizes the provided dataset and data name using the tokenizer from the specified path'''
     tokenizer = AutoTokenizer.from_pretrained(path)
     tokenizer.pad_token_id = tokenizer.eos_token_id
     tokenizer.pad_token = tokenizer.eos_token
-    
+    if "roberta" in model_name:
+        max_context_length = 512
+    elif "llama" in model_name:
+        max_context_length = 1024
+    else:
+        raise ValueError("Model name not recognized. Please use 'roberta' or 'llama' in the model name.")
     def tokenize_text(batch):
         if data_name == "sst2":
-            return tokenizer(batch["sentence"], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
+            return tokenizer(batch["sentence"], add_special_tokens=True, truncation=True, padding="max_length", max_length=max_context_length)
         if data_name == "mrpc":
-            return tokenizer(batch["sentence1"], batch['sentence2'], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
+            return tokenizer(batch["sentence1"], batch['sentence2'], add_special_tokens=True, truncation=True, padding="max_length", max_length=max_context_length)
         if data_name == "cola":
-            return tokenizer(batch["sentence"], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
+            return tokenizer(batch["sentence"], add_special_tokens=True, truncation=True, padding="max_length", max_length=max_context_length)
         if data_name == "qnli":
-            return tokenizer(batch["question"], batch['sentence'], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
+            return tokenizer(batch["question"], batch['sentence'], add_special_tokens=True, truncation=True, padding="max_length", max_length=max_context_length)
         if data_name == "rte":
-            return tokenizer(batch["sentence1"], batch['sentence2'], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
+            return tokenizer(batch["sentence1"], batch['sentence2'], add_special_tokens=True, truncation=True,  padding="max_length", max_length=max_context_length)
         if data_name == "qqp":
-            return tokenizer(batch["question1"], batch['question2'], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
+            return tokenizer(batch["question1"], batch['question2'], add_special_tokens=True, truncation=True,  padding="max_length", max_length=max_context_length)
         # if data_name == "mnli":
         #     return tokenizer(batch["premise"], batch['hypothesis'], add_special_tokens=True, truncation=True, padding='max_length', max_length=512)
         # if data_name == "stsb":
@@ -145,16 +156,15 @@ def get_mix_tokenizer(path, data_name, dataset): #used to do the maximum padding
         # if data_name == "multirc":
         #     return tokenizer(batch["paragraph"], batch['question'], batch['answer'], add_special_tokens=True, truncation=True, padding='max_length', max_length=512)
         if data_name == "boolq":
-            return tokenizer(batch["question"], batch['passage'], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
-        #'word', 'sentence1', 'sentence2', 'start1', 'start2', 'end1', 'end2', 'idx', 'label'
+            return tokenizer(batch["question"], batch['passage'], add_special_tokens=True, truncation=True,  padding="max_length", max_length=max_context_length)
         if data_name == "wic":
-            return tokenizer(batch["word"], batch['sentence1'], batch['sentence2'], batch['start1'], batch['start2'], batch['end1'], batch['end2'], add_special_tokens=True, truncation=True, padding='max_length', max_length=1024)
-        # if data_name == "hellaswag":
-        #     return tokenizer(batch["ind"], batch["activity_label"], batch['ctx_a'],batch['ctx_b'],batch['ctx'],batch['endings'],batch['source_id'],batch['split'],batch['split_type'], add_special_tokens=True, truncation=True, padding='max_length', max_length=512)
-        # if data_name == "cb":
-        #     return tokenizer(batch["premise"], batch["hypothesis"], truncation=True, padding='max_length', max_length=1024)
-        # if data_name == "boolq":
-        #     return tokenizer(batch["passage"], batch["question"], truncation=True, padding='max_length', max_length = 1024)
+            # Properly formatting inputs into a single string
+            texts = [f'{word} {s1} {s2} {s1_start}-{s1_end} {s2_start}-{s2_end}'
+                 for word, s1, s2, s1_start, s1_end, s2_start, s2_end in 
+                 zip(batch["word"], batch["sentence1"], batch["sentence2"], batch["start1"], batch["end1"], batch["start2"], batch["end2"])]
+
+            return tokenizer(texts, add_special_tokens=True, truncation=True,  padding="max_length", max_length=max_context_length)
+        
         # if data_name == "wsc":
         #     target = batch["target"]
         #     span1_text=[]
@@ -166,20 +176,20 @@ def get_mix_tokenizer(path, data_name, dataset): #used to do the maximum padding
 
         #         span1_text.append(span1_text_val)
         #         span2_text.append(span2_text_val)
-        #     span = [f"{span1_text}{tokenizer.bos_token}{span2_text}" for span1_text, span2_text in zip(span1_text, span2_text)]
+        #     span = [f'{span1_text}{tokenizer.bos_token}{span2_text}' for span1_text, span2_text in zip(span1_text, span2_text)]
         #     return tokenizer(batch["text"], span, truncation=True, padding='max_length', max_length = 1024)
         # if data_name == "copa":
         #     question = batch["question"]
         #     choice1 = batch["choice1"]
         #     choice2 = batch["choice2"]
         #     choice2 = batch["question"]
-        #     combined = [f"{choice1}{tokenizer.bos_token}{choice2}{tokenizer.bos_token}{question}" for choice1, choice2, question in zip(choice1, choice2, question)]
+        #     combined = [f'{choice1}{tokenizer.bos_token}{choice2}{tokenizer.bos_token}{question}' for choice1, choice2, question in zip(choice1, choice2, question)]
         #     return tokenizer(batch["premise"], combined, truncation=True, padding='max_length', max_length = 1024)
     tokenized = dataset.map(tokenize_text, batched=True, batch_size=None) 
     tokenized.set_format("torch", columns=["input_ids", "attention_mask", "label"])
     return tokenized
 
-def load_mixed_datasets(dataset_names, tokenizer_path, glue_type):
+def load_mixed_datasets(model_name, dataset_names, tokenizer_path):
     '''Dataset loading and check if loaded correctly'''
     mixed_train_dataset_dict = {
         
@@ -193,12 +203,17 @@ def load_mixed_datasets(dataset_names, tokenizer_path, glue_type):
         "label": torch.empty(0, dtype=torch.int64),
     }
     for dataset_name in dataset_names:
-        take_train = 3668
-        take_val = 408
+        take_train = 2490 #for rte 2490, mrpc 3668
+        take_val = 277 #for rte 277, mrpc 408
         print("Loading dataset inside mixed datasets: ", dataset_name)
-        dataset = load_dataset(glue_type,dataset_name)
-        # dataset = load_dataset_(dataset_name)
-        tokenized = get_mix_tokenizer(tokenizer_path, dataset_name , dataset)
+        if dataset_name in ["mrpc", "cola", "sst2", "qnli", "rte", "qqp"]:
+            glue_type = "glue"
+        elif dataset_name in ["boolq", "wic"]:
+            glue_type = "super_glue"
+
+        # dataset = load_dataset(glue_type,dataset_name)
+        dataset = load_dataset_(dataset_name)
+        tokenized = get_mix_tokenizer(model_name, tokenizer_path, dataset_name , dataset)
         train_tokenized_dataset = tokenized["train"]
         train_tokenized_dataset = train_tokenized_dataset.remove_columns(
             [col for col in train_tokenized_dataset.column_names if col not in ["input_ids", "attention_mask", "label"]]
@@ -347,7 +362,7 @@ def parse_experts(directory_path, model_name, dataload_type, dataset_name, multi
                 # Check if there are multiple .ckpt files in the expert folder
                 ckpt_files = [f for f in os.listdir(expert_folder) if f.endswith(".ckpt")]
                 if len(ckpt_files) > 1:
-                    raise ValueError(f"Multiple .ckpt files found in {expert_folder}. Only one .ckpt file is allowed per expert folder.")
+                    raise ValueError(f'Multiple .ckpt files found in {expert_folder}. Only one .ckpt file is allowed per expert folder.')
                 if filename.endswith(".ckpt"):
                     file_path = os.path.join(expert_folder, filename)
                     # Load the .ckpt file
@@ -368,17 +383,17 @@ def parse_experts(directory_path, model_name, dataload_type, dataset_name, multi
                                         all_experts[expert_name][classifier][t_type] = {}
                                     all_experts[expert_name][classifier][t_type][w_b] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")  
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')  
                             else:  #keys: model.roberta.encoder.layer.11.attention.self.query.ttlora_cores.0
                                 try:
-                                    layer = f"layer_{parts[4]}"  # Extract layer index
+                                    layer = f'layer_{parts[4]}'  # Extract layer index
                                     attention_type = parts[7]  # 'query' or 'value'
                                     ttlora_core = parts[-1]  # 'ttlora_cores.<index>'
 
                                     # Store extracted weights inside dictionary
                                     all_experts[expert_name][layer][attention_type][f'tt_cores_{ttlora_core}'] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')
                     
                     elif "llama" in model_name:
                         expert_data = {k: v for k, v in expert_data.items() if 'tt_cores' in k or 'score' in k}
@@ -391,10 +406,10 @@ def parse_experts(directory_path, model_name, dataload_type, dataset_name, multi
                                     w_b=parts[2]
                                     all_experts[expert_name][classifier][w_b] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")  
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')  
                             else:        #model.model.layers.1.self_attn.q_proj.ttlora_cores.7
                                 try:
-                                    layer = f"layer_{parts[3]}"  # Extract layer index
+                                    layer = f'layer_{parts[3]}'  # Extract layer index
                                     attention_type = parts[5]  # 'query' or 'value'
                                     if attention_type == "q_proj":
                                         attention_type = "query"
@@ -405,7 +420,7 @@ def parse_experts(directory_path, model_name, dataload_type, dataset_name, multi
                                     # Store extracted weights inside dictionary
                                     all_experts[expert_name][layer][attention_type][f'tt_cores_{ttlora_core}'] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')
 
     return all_experts
 
@@ -429,7 +444,7 @@ def parse_experts_for_single_test(directory_path, model_name):
                 # Check if there are multiple .ckpt files in the expert folder
                 ckpt_files = [f for f in os.listdir(expert_folder) if f.endswith(".ckpt")]
                 if len(ckpt_files) > 1:
-                    raise ValueError(f"Multiple .ckpt files found in {expert_folder}. Only one .ckpt file is allowed per expert folder.")
+                    raise ValueError(f'Multiple .ckpt files found in {expert_folder}. Only one .ckpt file is allowed per expert folder.')
                 if filename.endswith(".ckpt"):
                     file_path = os.path.join(expert_folder, filename)
                     # Load the .ckpt file
@@ -450,17 +465,17 @@ def parse_experts_for_single_test(directory_path, model_name):
                                         all_experts[expert_name][classifier][t_type] = {}
                                     all_experts[expert_name][classifier][t_type][w_b] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")  
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')  
                             else:  #keys: model.roberta.encoder.layer.11.attention.self.query.ttlora_cores.0
                                 try:
-                                    layer = f"layer_{parts[4]}"  # Extract layer index
+                                    layer = f'layer_{parts[4]}'  # Extract layer index
                                     attention_type = parts[7]  # 'query' or 'value'
                                     ttlora_core = parts[-1]  # 'ttlora_cores.<index>'
 
                                     # Store extracted weights inside dictionary
                                     all_experts[expert_name][layer][attention_type][f'tt_core_{ttlora_core}'] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')
                     
                     elif "llama" in model_name:
                         expert_data = {k: v for k, v in expert_data.items() if 'tt_core' in k or 'score' in k}
@@ -473,10 +488,10 @@ def parse_experts_for_single_test(directory_path, model_name):
                                     w_b=parts[2]
                                     all_experts[expert_name][classifier][w_b] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")  
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')  
                             else:        #model.model.layers.1.self_attn.q_proj.ttlora_cores.7
                                 try:
-                                    layer = f"layer_{parts[3]}"  # Extract layer index
+                                    layer = f'layer_{parts[3]}'  # Extract layer index
                                     attention_type = parts[5]  # 'query' or 'value'
                                     if attention_type == "q_proj":
                                         attention_type = "query"
@@ -487,7 +502,7 @@ def parse_experts_for_single_test(directory_path, model_name):
                                     # Store extracted weights inside dictionary
                                     all_experts[expert_name][layer][attention_type][f'tt_core_{ttlora_core}'] = tensor
                                 except IndexError:
-                                    print(f"Skipping invalid key: {full_key} in {expert_name}")
+                                    print(f'Skipping invalid key: {full_key} in {expert_name}')
 
     return all_experts
 

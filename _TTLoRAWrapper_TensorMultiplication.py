@@ -35,7 +35,7 @@ def tensorized_multiplication(X, tt_cores, m_factors, n_factors, device):
     total_cores = num_m + num_n
 
     if len(tt_cores) != total_cores:
-        raise ValueError(f"Expected {total_cores} TT-cores, got {len(tt_cores)}")
+        raise ValueError(f'Expected {total_cores} TT-cores, got {len(tt_cores)}')
 
     # 3) Process each INPUT factor
     # We want to remove the last dimension from tt_state each time:

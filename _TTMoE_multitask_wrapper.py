@@ -37,7 +37,7 @@ def tensorized_multiplication_experts(self, X, tt_cores, m_factors, n_factors, g
     total_cores = num_m + num_n
 
     if len(tt_cores) != total_cores:
-        raise ValueError(f"Expected {total_cores} TT-cores, got {len(tt_cores)}")
+        raise ValueError(f'Expected {total_cores} TT-cores, got {len(tt_cores)}')
 
     # We'll do the same flow: contract out input factors, then add output factors.
     # But each time, we must "mask" the stacked core by gates, sum over E.
@@ -214,7 +214,7 @@ class MoEsparseRouting(nn.Module):
         self.num_n = len(self.n_factors_q)
         self.num_cores = self.num_m + self.num_n
         if len(tt_cores_stacked) != self.num_cores:
-            raise ValueError(f"Expected {self.num_cores} cores, got {len(tt_cores_stacked)}")
+            raise ValueError(f'Expected {self.num_cores} cores, got {len(tt_cores_stacked)}')
 
         # Figure out E from the shape of the first core
         example_core = tt_cores_stacked[0]
@@ -270,7 +270,7 @@ class MoEsparseRouting(nn.Module):
         self.num_n = len(self.n_factors_v)
         self.num_cores = self.num_m + self.num_n
         if len(tt_cores_stacked) != self.num_cores:
-            raise ValueError(f"Expected {self.num_cores} cores, got {len(tt_cores_stacked)}")
+            raise ValueError(f'Expected {self.num_cores} cores, got {len(tt_cores_stacked)}')
 
         # Figure out E from the shape of the first core
         example_core = tt_cores_stacked[0]
@@ -313,7 +313,7 @@ class MoEsparseRouting(nn.Module):
             print("\nlogits", logits[:5])
             self.gates = F.gumbel_softmax(logits, tau=gumbel_temperature, hard=True).to(self.device)
             print("\ngates", self.gates[:5])
-            print(f"\n Selected Experts of this Batch size {B}\n", 
+            print(f'\n Selected Experts of this Batch size {B}\n', 
                 self.count_labels_of_experts_selection(self.gates))
             layer_idx = 0
             for layer in self.base_module.layer:
@@ -326,7 +326,7 @@ class MoEsparseRouting(nn.Module):
                 list_query_cores = [[] for _ in range(self.num_cores_q)]
                 # list_query_cores = [[] for _ in range(len(access_first_expert[f"layer_{layer_idx}"]["query"]))]
                 for expert in self.experts.values():
-                    for i, (core_name, tensor) in enumerate(expert[f"layer_{layer_idx}"]["query"].items()):
+                    for i, (core_name, tensor) in enumerate(expert[f'layer_{layer_idx}']["query"].items()):
                         list_query_cores[i].append(tensor)
                 
                 # print("\n Expert stacking for mrpc", list_query_cores[0][1])
@@ -349,7 +349,7 @@ class MoEsparseRouting(nn.Module):
                 list_value_cores = [[] for _ in range(self.num_cores_v)]
                 # list_value_cores = [[] for _ in range(len(access_first_expert[f"layer_{layer_idx}"]["value"]))]
                 for expert in self.experts.values():
-                    for i, (core_name, tensor) in enumerate(expert[f"layer_{layer_idx}"]["value"].items()):
+                    for i, (core_name, tensor) in enumerate(expert[f'layer_{layer_idx}']["value"].items()):
                         list_value_cores[i].append(tensor)
 
                 # (b) Convert list of 8[ list of 4[ tensor of (r_i, factor_dim, r_{i+1})] ] ==> list of 8 [ tensor of (E, r_i, factor_dim, r_{i+1})]
@@ -373,9 +373,7 @@ class MoEsparseRouting(nn.Module):
                 layer_idx += 1
             
             # Forward through transformer layers
-            model_output = self.base_module(X, *args, **kwargs)
-
-            return model_output
+            return self.base_module(X, *args, **kwargs)
         
         elif "llama" in self.model_name:
             
@@ -393,7 +391,7 @@ class MoEsparseRouting(nn.Module):
             print("\nshape of gate logits",logits.shape)
             self.gates = F.gumbel_softmax(logits, tau=gumbel_temperature, hard=True).to(self.device)
             print("\nshape of gates",self.gates.shape)
-            print(f"\nSelected Experts of this Batch size {B}\n", 
+            print(f'\nSelected Experts of this Batch size {B}\n', 
                 self.count_labels_of_experts_selection(self.gates))
             layer_idx = 0
             for layer in self.base_module.layers:
@@ -402,7 +400,7 @@ class MoEsparseRouting(nn.Module):
                 list_query_cores = [[] for _ in range(self.num_cores_q)]
                 # list_query_cores = [[] for _ in range(len(access_first_expert[f"layer_{layer_idx}"]["query"]))]
                 for expert in self.experts.values():
-                    for i, (core_name, tensor) in enumerate(expert[f"layer_{layer_idx}"]["query"].items()):
+                    for i, (core_name, tensor) in enumerate(expert[f'layer_{layer_idx}']["query"].items()):
                         list_query_cores[i].append(tensor)
                 
                 # print("\n Expert stacking for mrpc", list_query_cores[0][1])
@@ -419,7 +417,7 @@ class MoEsparseRouting(nn.Module):
                 list_value_cores = [[] for _ in range(self.num_cores_v)]
                 # list_value_cores = [[] for _ in range(len(access_first_expert[f"layer_{layer_idx}"]["value"]))]
                 for expert in self.experts.values():
-                    for i, (core_name, tensor) in enumerate(expert[f"layer_{layer_idx}"]["value"].items()):
+                    for i, (core_name, tensor) in enumerate(expert[f'layer_{layer_idx}']["value"].items()):
                         list_value_cores[i].append(tensor)
 
                 # (b) Convert list of 8[ list of 4[ tensor of (r_i, factor_dim, r_{i+1})] ] ==> list of 8 [ tensor of (E, r_i, factor_dim, r_{i+1})]
@@ -478,7 +476,6 @@ class MoEsparseRoutingForClassification(nn.Module):
         X= X.unsqueeze(1)
         out = (X * selected_weights).sum(2) + selected_biases
         # print("\noutput shape from custom out_proj_forward", out.shape)
-        # sys.exit(1)
         return out
     
     def custom_score_forward(self, X,

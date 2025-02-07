@@ -199,7 +199,7 @@ if __name__ == "__main__":
     
     #changeable parameter
     '''while changing the model_name, make sure to change the expert_path as well'''
-    model_name = "llama-3.2-1b" # roberta-base, llama-3.2-1b, llama-3-8b, llama-3-70b
+    model_name = "llama-3.2-1b" # roberta-base, llama-3.2-1b, llama-3.1-8b, llama-3.1-70b
     #changeable parameter
     
     if model_name == "roberta-base":
@@ -223,43 +223,43 @@ if __name__ == "__main__":
         #ttlora parameters
         #query parameters
         "qshape": [64,4,3,3,4,64] if "roberta-base" in model_name #roberta query shape = 768x768
-        else [16,4,4,4,2,2,2,2,4,4,4,16] if "llama-3-8b" in model_name #llama-3-8b q_proj shape = 4096x4096,
-        else [16,4,4,4,2,2,2,2,2,2,4,4,4,16] if "llama-3-70b" in model_name #llama-3-70b q_proj shape = 8192x8192
+        else [16,4,4,4,2,2,2,2,4,4,4,16] if "llama-3.1-8b" in model_name #llama-3.1-8b q_proj shape = 4096x4096,
+        else [16,4,4,4,2,2,2,2,2,2,4,4,4,16] if "llama-3.1-70b" in model_name #llama-3.1-70b q_proj shape = 8192x8192
         else [16,4,4,2,2,2,2,2,2,4,4,16] if "llama-3.2-1b" in model_name #llama-3.2-1b q_proj shape = 2048x2048
         else ValueError(f"{model_name} Not adapted for this experiment"), 
 
         "m_factors_q": 
         [64,4,3] if "roberta-base" in model_name #roberta m of query shape = 768,
-        else [16,4,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b m of q_proj shape = 4096,
-        else [16,4,4,4,2,2,2] if "llama-3-70b" in model_name #llama-3-70b m of q_proj shape = 8192
+        else [16,4,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b m of q_proj shape = 4096,
+        else [16,4,4,4,2,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b m of q_proj shape = 8192
         else [16,4,4,2,2,2] if "llama-3.2-1b" in model_name #llama-3.2-1b m of q_proj shape = 2048
         else ValueError(f"{model_name} Not adapted for this experiment"), 
 
         "n_factors_q": 
         [64,4,3] if "roberta-base" in model_name #roberta n of query shape = 768
-        else [16,4,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b n of q_proj shape = 4096,
-        else [16,4,4,4,2,2,2] if "llama-3-70b" in model_name #llama-3-70b n of q_proj shape = 8192
+        else [16,4,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b n of q_proj shape = 4096,
+        else [16,4,4,4,2,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b n of q_proj shape = 8192
         else [16,4,4,2,2,2] if "llama-3.2-1b" in model_name #llama-3.2-1b n of q_proj shape = 2048
         else ValueError(f"{model_name} Not adapted for this experiment"),
 
         #value parameters
         "vshape": [64,4,3,3,4,64] if "roberta-base" in model_name #roberta value shape = 768x768
-        else [16,4,4,4,2,2,2,2,4,4,16] if "llama-3-8b" in model_name #llama-3-8b v_proj shape = 4096x1024,
-        else [16,4,4,4,2,2,2,2,2,4,4,16] if "llama-3-70b" in model_name #llama-3-70b v_proj shape = 8192x1024
+        else [16,4,4,4,2,2,2,2,4,4,16] if "llama-3.1-8b" in model_name #llama-3.1-8b v_proj shape = 4096x1024,
+        else [16,4,4,4,2,2,2,2,2,4,4,16] if "llama-3.1-70b" in model_name #llama-3.1-70b v_proj shape = 8192x1024
         else [16,4,4,2,2,2,2,4,4,16] if "llama-3.2-1b" in model_name #llama-3.2-1b n of v_proj shape = 2048 x 512
         else ValueError(f"{model_name} Not adapted for this experiment"), 
 
         "m_factors_v": 
         [64,4,3] if "roberta-base" in model_name #roberta m of value shape = 768
-        else [16,4,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b m of v_proj shape = 4096,
-        else [16,4,4,4,2,2,2] if "llama-3-70b" in model_name #llama-3-70b m of v_proj shape = 8192
+        else [16,4,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b m of v_proj shape = 4096,
+        else [16,4,4,4,2,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b m of v_proj shape = 8192
         else [16,4,4,2,2,2] if "llama-3.2-1b" in model_name #llama-3.2-1b m of v_proj shape = 2048
         else ValueError(f"{model_name} Not adapted for this experiment"), 
 
         "n_factors_v": 
         [64,4,3] if "roberta-base" in model_name #roberta n of value shape = 768
-        else [16,4,4,2,2] if "llama-3-8b" in model_name #llama-3-8b n of v_proj shape = 1024
-        else [16,4,4,2,2] if "llama-3-70b" in model_name #llama-3-70b n of v_proj shape = 1024
+        else [16,4,4,2,2] if "llama-3.1-8b" in model_name #llama-3.1-8b n of v_proj shape = 1024
+        else [16,4,4,2,2] if "llama-3.1-70b" in model_name #llama-3.1-70b n of v_proj shape = 1024
         else [16,4,4,2] if "llama-3.2-1b" in model_name #llama-3.2-1b m of v_proj shape = 512
         else ValueError(f"{model_name} Not adapted for this experiment"),
 
@@ -296,8 +296,8 @@ if __name__ == "__main__":
         #changeable hyperparameters
         "learning_rate": 1e-3
         # 1e-3 if "roberta-base" in model_name 
-        # else 1e-5 if "llama-3-8b" in model_name
-        # else 1e-5 if "llama-3-70b" in model_name
+        # else 1e-5 if "llama-3.1-8b" in model_name
+        # else 1e-5 if "llama-3.1-70b" in model_name
         # else ValueError(f"{model_name} Not adapted for this experiment"),
     }
     experts_dict = parse_experts_for_single_test(f"./trained_checkpoints/{model_name}/experts", model_name)
