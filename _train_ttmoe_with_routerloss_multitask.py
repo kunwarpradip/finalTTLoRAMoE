@@ -111,7 +111,8 @@ def train_moe_without_ray(config):
         else:
             (lambda: (_ for _ in ()).throw(ValueError(f'{config["dataset_name"]}: Not adapted for this dataset')))(),
         # #For single dataset
-        dataset = load_dataset(glue_type, config["dataset_name"])
+        # dataset = load_dataset(glue_type, config["dataset_name"])
+        dataset = load_dataset_(config["dataset_name"])
         tokenized = get_tokenizer(config, dataset)
         train_dataset = tokenized["train"]
         val_dataset = tokenized["validation"]
@@ -319,10 +320,10 @@ def main():
 
         #model parameters
         "model_name" : model_name,
-        # "model_path" : '/lustre/vescratch1/ceodspspectrum/llms/llama31-8b/checkpoints/', #for local
-        # "tokenizer_path" : '/lustre/vescratch1/ceodspspectrum/llms/llama31-8b/checkpoints/', #for local
-        "model_path" : f'./models/{model_name}/{model_name}-model', 
-        "tokenizer_path" : f'./models/{model_name}/{model_name}-tokenizer', 
+        "model_path" : '/lustre/vescratch1/ceodspspectrum/llms/llama31-8b/checkpoints/', #for local
+        "tokenizer_path" : '/lustre/vescratch1/ceodspspectrum/llms/llama31-8b/checkpoints/', #for local
+        # "model_path" : f'./models/{model_name}/{model_name}-model', 
+        # "tokenizer_path" : f'./models/{model_name}/{model_name}-tokenizer', 
         "device": device,  
   
         #changable dataset parameters:

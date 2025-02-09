@@ -32,7 +32,7 @@ def load_new_model_for_sequence_classification_from_local_path(config):
         model.config.pad_token_id = model.config.eos_token_id[0]
     except:
         model.config.pad_token_id = model.config.eos_token_id
-        
+
     for param in model.parameters():
         param.requires_grad = False
     # print(model)
@@ -213,8 +213,8 @@ def load_mixed_datasets(model_name, dataset_names, tokenizer_path):
         elif dataset_name in ["boolq", "wic"]:
             glue_type = "super_glue"
 
-        dataset = load_dataset(glue_type,dataset_name)
-        # dataset = load_dataset_(dataset_name)
+        # dataset = load_dataset(glue_type,dataset_name)
+        dataset = load_dataset_(dataset_name)
         tokenized = get_mix_tokenizer(model_name, tokenizer_path, dataset_name , dataset)
         train_tokenized_dataset = tokenized["train"]
         train_tokenized_dataset = train_tokenized_dataset.remove_columns(
@@ -541,7 +541,8 @@ def load_mixed_datasets_with_expertlabels(model_name, dataset_names, tokenizer_p
             glue_type = "super_glue"
         else:
             (lambda: (_ for _ in ()).throw(ValueError(f'{dataset_name}: Not adapted for this dataset')))(),
-        dataset_loaded = load_dataset(glue_type, dataset)
+        # dataset_loaded = load_dataset(glue_type, dataset)
+        dataset_loaded = load_dataset_(dataset)
         dataset_counts_train[dataset] = len(dataset_loaded['train'])
         dataset_counts_valid[dataset] = len(dataset_loaded['validation'])
     # Find the dataset with the lowest count
