@@ -28,9 +28,11 @@ def get_ttlora_rank(r, ttlora_shape):
 
 def load_new_model_for_sequence_classification_from_local_path(config):
     model = AutoModelForSequenceClassification.from_pretrained(config["model_path"], num_labels=2)
-    # if "llama-3.1-8b" in config["model_name"] or "llama-3.1-70b" in config["model_name"]:
-    #     model.config.pad_token_id = model.config.eos_token_id[0]
-    model.config.pad_token_id = model.config.eos_token_id
+    try:
+        model.config.pad_token_id = model.config.eos_token_id[0]
+    except:
+        model.config.pad_token_id = model.config.eos_token_id
+        
     for param in model.parameters():
         param.requires_grad = False
     # print(model)
@@ -211,8 +213,8 @@ def load_mixed_datasets(model_name, dataset_names, tokenizer_path):
         elif dataset_name in ["boolq", "wic"]:
             glue_type = "super_glue"
 
-        # dataset = load_dataset(glue_type,dataset_name)
-        dataset = load_dataset_(dataset_name)
+        dataset = load_dataset(glue_type,dataset_name)
+        # dataset = load_dataset_(dataset_name)
         tokenized = get_mix_tokenizer(model_name, tokenizer_path, dataset_name , dataset)
         train_tokenized_dataset = tokenized["train"]
         train_tokenized_dataset = train_tokenized_dataset.remove_columns(
@@ -512,3 +514,130 @@ def load_dataset_(data_name):
     dataset = load_dataset(data_path)
     # dataset = load_dataset("glue", data_name)
     return dataset
+
+def load_mixed_datasets_with_expertlabels(model_name, dataset_names, tokenizer_path, datamix_type):
+    '''Dataset loading and check if loaded correctly'''
+    mixed_train_dataset_dict = {
+        
+        "input_ids": torch.empty(0,dtype=torch.int64),
+        "attention_mask": torch.empty(0, dtype=torch.int64),
+        "label": torch.empty(0, dtype=torch.int64),
+        "expert_label": torch.empty(0, dtype=torch.int64)
+    }
+    mixed_validation_dataset_dict = {
+        "input_ids": torch.empty(0, dtype=torch.int64),
+        "attention_mask": torch.empty(0, dtype=torch.int64),
+        "label": torch.empty(0, dtype=torch.int64),
+        "expert_label": torch.empty(0, dtype=torch.int64)
+    }
+
+    # Count the number of samples in each dataset
+    dataset_counts_train = {}
+    dataset_counts_valid = {}
+    for dataset in dataset_names:
+        if dataset in ["mrpc", "cola", "sst2", "qnli", "rte", "qqp"]:
+            glue_type = "glue"
+        elif dataset in ["boolq", "wic"]:
+            glue_type = "super_glue"
+        else:
+            (lambda: (_ for _ in ()).throw(ValueError(f'{dataset_name}: Not adapted for this dataset')))(),
+        dataset_loaded = load_dataset(glue_type, dataset)
+        dataset_counts_train[dataset] = len(dataset_loaded['train'])
+        dataset_counts_valid[dataset] = len(dataset_loaded['validation'])
+    # Find the dataset with the lowest count
+    lowest_count_train_dataset = min(dataset_counts_train, key=dataset_counts_train.get)
+    lowest_count_valid_dataset = min(dataset_counts_valid, key=dataset_counts_valid.get)
+    take_train = dataset_counts_train[lowest_count_train_dataset]
+    take_val = dataset_counts_valid[lowest_count_valid_dataset]
+    
+    expert_idx = 0
+    for dataset_name in dataset_names:
+        print("slicing for train: ", take_train, "slicing for val: ", take_val)
+        print("Loading dataset inside mixed datasets: ", dataset_name)
+        print("expert_idx"  , expert_idx)
+        if dataset_name in ["mrpc", "cola", "sst2", "qnli", "rte", "qqp"]:
+            glue_type = "glue"
+        elif dataset_name in ["boolq", "wic"]:
+            glue_type = "super_glue"
+
+        dataset = load_dataset(glue_type,dataset_name)
+        tokenized = get_mix_tokenizer(model_name, tokenizer_path, dataset_name , dataset)
+        
+        #########################################For Train###################################################
+        train_tokenized_dataset = tokenized["train"]
+        train_tokenized_dataset = train_tokenized_dataset.remove_columns(
+            [col for col in train_tokenized_dataset.column_names if col not in ["input_ids", "attention_mask", "label"]]
+        )
+        # Add expert_label column
+        train_tokenized_dataset = train_tokenized_dataset.add_column(name="expert_label", column=[expert_idx] * len(train_tokenized_dataset))
+        print("Train tokenized dataset before slicing: ", train_tokenized_dataset['input_ids'].shape, 
+              train_tokenized_dataset['attention_mask'].shape, 
+              train_tokenized_dataset['label'].shape,
+              train_tokenized_dataset['expert_label'].shape)
+
+        if datamix_type == "balanced":
+            mixed_train_dataset_dict["input_ids"] = torch.cat((mixed_train_dataset_dict["input_ids"], 
+                                                            train_tokenized_dataset["input_ids"][:take_train]), dim=0)
+            mixed_train_dataset_dict["attention_mask"] = torch.cat((mixed_train_dataset_dict["attention_mask"], 
+                                                                    train_tokenized_dataset["attention_mask"][:take_train]), dim=0)
+            mixed_train_dataset_dict["label"] = torch.cat((mixed_train_dataset_dict["label"], 
+                                                        train_tokenized_dataset["label"][:take_train]), dim=0)
+            mixed_train_dataset_dict["expert_label"] = torch.cat((mixed_train_dataset_dict["expert_label"],
+                                                                    train_tokenized_dataset["expert_label"][:take_train]), dim=0)
+        elif datamix_type == "unbalanced":
+            mixed_train_dataset_dict["input_ids"] = torch.cat((mixed_train_dataset_dict["input_ids"], 
+                                                            train_tokenized_dataset["input_ids"]), dim=0)
+            mixed_train_dataset_dict["attention_mask"] = torch.cat((mixed_train_dataset_dict["attention_mask"], 
+                                                                    train_tokenized_dataset["attention_mask"]), dim=0)
+            mixed_train_dataset_dict["label"] = torch.cat((mixed_train_dataset_dict["label"], 
+                                                        train_tokenized_dataset["label"]), dim=0)
+            mixed_train_dataset_dict["expert_label"] = torch.cat((mixed_train_dataset_dict["expert_label"],
+                                                                    train_tokenized_dataset["expert_label"]), dim=0)
+        else:
+            raise ValueError("Invalid datamix type. Please use 'balanced' or 'unbalanced' for datamix type.")
+        #########################################For Validation###################################################
+        validation_tokenized_dataset = tokenized["validation"]
+        validation_tokenized_dataset = validation_tokenized_dataset.remove_columns(
+            [col for col in validation_tokenized_dataset.column_names if col not in ["input_ids", "attention_mask", "label"]]
+        )
+        # Add expert_label column
+        validation_tokenized_dataset = validation_tokenized_dataset.add_column("expert_label", [expert_idx] * len(validation_tokenized_dataset))
+        print("Validation tokenized dataset before slicing: ", validation_tokenized_dataset['input_ids'].shape, 
+              validation_tokenized_dataset['attention_mask'].shape, 
+              validation_tokenized_dataset['label'].shape,
+              validation_tokenized_dataset['expert_label'].shape)
+
+        if datamix_type == "balanced":
+            mixed_validation_dataset_dict["input_ids"] = torch.cat((mixed_validation_dataset_dict["input_ids"], 
+                                                                    validation_tokenized_dataset["input_ids"][:take_val]), dim=0)
+            mixed_validation_dataset_dict["attention_mask"] = torch.cat((mixed_validation_dataset_dict["attention_mask"], 
+                                                                        validation_tokenized_dataset["attention_mask"][:take_val]), dim=0)
+            mixed_validation_dataset_dict["label"] = torch.cat((mixed_validation_dataset_dict["label"], 
+                                                                validation_tokenized_dataset["label"][:take_val]), dim=0)
+            mixed_validation_dataset_dict["expert_label"] = torch.cat((mixed_validation_dataset_dict["expert_label"],
+                                                                    validation_tokenized_dataset["expert_label"][:take_val]), dim=0)
+        elif datamix_type == "unbalanced":
+            mixed_validation_dataset_dict["input_ids"] = torch.cat((mixed_validation_dataset_dict["input_ids"], 
+                                                                    validation_tokenized_dataset["input_ids"]), dim=0)
+            mixed_validation_dataset_dict["attention_mask"] = torch.cat((mixed_validation_dataset_dict["attention_mask"], 
+                                                                        validation_tokenized_dataset["attention_mask"]), dim=0)
+            mixed_validation_dataset_dict["label"] = torch.cat((mixed_validation_dataset_dict["label"], 
+                                                                validation_tokenized_dataset["label"]), dim=0)
+            mixed_validation_dataset_dict["expert_label"] = torch.cat((mixed_validation_dataset_dict["expert_label"],
+                                                                    validation_tokenized_dataset["expert_label"]), dim=0)
+        else:
+            raise ValueError("Invalid datamix type. Please use 'balanced' or 'unbalanced' for datamix type.")
+        expert_idx += 1
+    # # Shuffle the training dataset
+    # train_indices = torch.randperm(mixed_train_dataset_dict["input_ids"].size(0))
+    # mixed_train_dataset_dict["input_ids"] = mixed_train_dataset_dict["input_ids"][train_indices]
+    # mixed_train_dataset_dict["attention_mask"] = mixed_train_dataset_dict["attention_mask"][train_indices]
+    # mixed_train_dataset_dict["label"] = mixed_train_dataset_dict["label"][train_indices]
+
+    # # Shuffle the validation dataset
+    # val_indices = torch.randperm(mixed_validation_dataset_dict["input_ids"].size(0))
+    # mixed_validation_dataset_dict["input_ids"] = mixed_validation_dataset_dict["input_ids"][val_indices]
+    # mixed_validation_dataset_dict["attention_mask"] = mixed_validation_dataset_dict["attention_mask"][val_indices]
+    # mixed_validation_dataset_dict["label"] = mixed_validation_dataset_dict["label"][val_indices]
+    
+    return mixed_train_dataset_dict, mixed_validation_dataset_dict
